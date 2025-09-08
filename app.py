@@ -1,16 +1,20 @@
 import os, uuid
 import streamlit as st
 from langfuse import get_client
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams, PointStruct
 from dotenv import load_dotenv
 from openai import OpenAI
-from config.constants import APP_TITTLE, APP_ICON, APP_DESCRIPTION, APP_VERSION, APP_AUTHOR, APP_AUTHOR_EMAIL, APP_AUTHOR_WEBSITE, OPENAI_MODEL, YLLIA_FIRST_MESSAGE, MAX_TURNS
-import time
+from config.constants import * # APP_TITTLE, APP_ICON, APP_DESCRIPTION, APP_VERSION, APP_AUTHOR, APP_AUTHOR_EMAIL, APP_AUTHOR_WEBSITE, OPENAI_MODEL, YLLIA_FIRST_MESSAGE, MAX_TURNS, EMBEDDING_MODEL, EMBEDDING_DIMENSION, QDRANT_COLLECTION_NAME
+
+
 # Inicjalizacja zmiennych sekretnych
 load_dotenv()
 
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
+qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
 langfuse = get_client()
+
 
 # Konfiguraca strony
 
@@ -97,10 +101,25 @@ if st.session_state.begin_session == False:
     else:
         st.stop()
 
+#
+# Obsługa embedingów
+#
 
-# if not st.session_state.begin_session:
-#     st.stop()
+def get_embeddings(text):
+    result = openai_client.embeddings.create(
+        input=text,
+        model=EMBEDDING_MODEL,
+        dimensions=EMBEDDING_DIMENSION,
+    )
+    return result.data[0].embedding
 
+def search_embeddings(text, collection_name):
+    results = qdrant_client.search(
+        collection_name=collection_name,
+        query_vector=get_embeddings(text),
+        limit=3,
+    )
+    return results
 
 #
 # Obsługa historii
@@ -218,6 +237,84 @@ if st.session_state.session_feedback_given == False:
             st.toast("Dziękuję za feedback!", icon="✅")
             st.session_state.begin_session = False
             st.rerun()
+
+
+def ask_chad_embeddings_responses(prompt: str, embedding: str, embedding_dynamic: str):
+    ctx_static = embedding or ""
+    ctx_dynamic = embedding_dynamic or ""
+
+    input_text = (
+        PROMPT_GENERAL + "\n\n"
+        "# ROLA I TOŻSAMOŚĆ\n"
+        "Jesteś Yllia, profesjonalną wirtualną asystentką gabinetu psychiatrycznego dra Damiana Siwickiego. "
+        "Odpowiadasz WYŁĄCZNIE w języku polskim.\n\n"
+        
+        "# GŁÓWNE ZASADY ODPOWIADANIA\n"
+        "1. **ZAWSZE analizuj oba konteksty przed odpowiedzią** - zarówno statyczny jak i dynamiczny zawierają kluczowe informacje\n"
+        "2. **Odpowiadaj szczegółowo i kompletnie** - wykorzystuj wszystkie dostępne informacje z kontekstów\n"
+        "3. **Cytuj konkretne informacje** z kontekstu, gdy są dostępne\n"
+        "4. **Łącz informacje** z obu kontekstów, jeśli uzupełniają się\n"
+        "5. Bądź **ciepła, empatyczna i pomocna** przy zachowaniu profesjonalizmu\n\n"
+        
+        "# HIERARCHIA INFORMACJI\n"
+        "- **KONTEKST DYNAMICZNY**: dane administracyjne, godziny, kontakt, ceny - ZAWSZE AKTUALNE\n"
+        "- **KONTEKST STATYCZNY**: odpowiedzi na częste pytania pacjentów - sprawdzone informacje\n"
+        "- Jeśli informacje się różnią, priorytet ma kontekst dynamiczny\n"
+        "- Jeśli nie wywnioskujesz inaczej, to priorytet ma kierowanie kontaktu na rejestrację poszczególnych gabinetów gdzie przyjmuje lekarz\n\n"
+        
+        "# INSTRUKCJE ODPOWIADANIA\n"
+        "## Gdy masz informacje w kontekście:\n"
+        "- Udziel pełnej, szczegółowej odpowiedzi\n"
+        "- Wykorzystaj WSZYSTKIE istotne informacje z kontekstów\n"
+        "- Dodaj praktyczne wskazówki, jeśli są w kontekście\n"
+        "- Jeśli w kontekście są numery telefonów, godziny, ceny - podaj je\n\n"
+        
+        "## Gdy brakuje informacji:\n"
+        "Odpowiedz: 'Niestety, nie mam tej informacji w mojej bazie danych. Polecam skontaktować się bezpośrednio z gabinetem.'\n\n"
+        
+        "## Pytania poza zakresem:\n"
+        "- **Kryzysy psychiczne**: 'W sytuacjach kryzysowych proszę skontaktować się z Pogotowiem Ratunkowym (112) lub najbliższym szpitalem psychiatrycznym.'\n"
+        "- **Tematy niezwiązane z gabinetem**: 'Jestem asystentką gabinetu psychiatrycznego i odpowiadam tylko na pytania związane z naszymi usługami.'\n"
+        "- **Prywatne sprawy doktora**: 'Nie mogę udzielać informacji o sprawach prywatnych.'\n\n"
+        
+        "# PRZYKŁAD DOBREJ ODPOWIEDZI\n"
+        "Zamiast: 'Tak, przyjmujemy pacjentów.'\n"
+        "Napisz: 'Tak, dr Damian Siwicki prowadzi konsultacje psychiatryczne. Gabinet przyjmuje [dni/godziny z kontekstu]. Wizytę można umówić telefonicznie pod numerem [numer z kontekstu] lub [inne sposoby z kontekstu]. Koszt konsultacji to [cena z kontekstu].'\n\n"
+        
+        "---\n\n"
+        "### KONTEKST STATYCZNY (odpowiedzi na częste pytania pacjentów):\n" + ctx_static + "\n\n"
+        "### KONTEKST DYNAMICZNY (aktualne dane administracyjne gabinetu):\n" + ctx_dynamic + "\n\n"
+        "### PYTANIE PACJENTA:\n" + prompt + "\n\n"
+        
+        "**Przeanalizuj oba konteksty, sprawdź czy to nie jest sytuacja nagła lub nieodpowiednia, a następnie udziel kompletnej, pomocnej odpowiedzi wykorzystując wszystkie dostępne informacje.**"
+    )
+    with st.sidebar:
+        st.write(prompt)
+    resp = openai_client.responses.create(
+        model=OPENAI_MODEL,  # np. "o4-mini" / "o3"
+        input=input_text,
+        temperature=0.2,
+    )
+    # Tekstowy output jest zwykle pod resp.output_text
+    return getattr(resp, "output_text", "").strip()
+
+try:
+    st.caption(st.session_state.messages[-2]["content"])
+
+    search_qdrant = search_embeddings(st.session_state.messages[-2]["content"], QDRANT_COLLECTION_NAME)
+
+    for result in search_qdrant:
+        st.write(result.score, '...', result.payload["answer"])
+
+    search_qdrant_dynamic = search_embeddings(st.session_state.messages[-2]["content"], QDRANT_COLLECTION_NAME_DYNAMIC)
+    for result in search_qdrant_dynamic:
+        st.write(result.score, '...', result.payload["answer"])
+    
+    st.write("Odpowiedź z Qdrant:")
+    response = ask_chad_embeddings_responses(st.session_state.messages[-2]["content"], search_qdrant[0].payload["answer"], search_qdrant_dynamic[0].payload["answer"])
+    st.write(response)
+except:
+    pass
 
 # ---------- Render historii ----------
 # for i, msg in enumerate(st.session_state.messages):
