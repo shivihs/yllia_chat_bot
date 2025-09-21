@@ -20,7 +20,6 @@ def ask_openai(user_input: str, ctx_static: str = "", ctx_dynamic: str = "", spe
     Funkcja wysyła pytanie użytkownika do OpenAI z pełnym promptem.
     """
     system_prompt = load_prompt(ctx_static, ctx_dynamic, speech_history)
-    print(f"\n\n\n{system_prompt}\n\n\n")
     response = client.chat.completions.create(
         model=OPENAI_MODEL,
         messages=[
@@ -40,3 +39,4 @@ def ask_openai_simple(user_prompt: str) -> str:
         temperature=0.3,
     )
     return response.choices[0].message.content
+

@@ -6,124 +6,127 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 from dotenv import load_dotenv
 from openai import OpenAI
 from config.constants import * # APP_TITTLE, APP_ICON, APP_DESCRIPTION, APP_VERSION, APP_AUTHOR, APP_AUTHOR_EMAIL, APP_AUTHOR_WEBSITE, OPENAI_MODEL, YLLIA_FIRST_MESSAGE, MAX_TURNS, EMBEDDING_MODEL, EMBEDDING_DIMENSION, QDRANT_COLLECTION_NAME
-from utils.history import build_context
-from services.openai_service import ask_openai_simple
+import services.langfuse_service as langfuse_service
 
-# Inicjalizacja zmiennych sekretnych
-load_dotenv()
+from services.openai_service import ask_openai
+import tiktoken
+import services.prompt_sevice as prompt_service
+from PIL import Image
+import services.supabase_service as supabase_service
+from services.conversation_service import summarize_full_history
+from services.qdrant_service import search_embeddings
 
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
-langfuse = get_client()
-
-
-# Konfiguraca strony
-
-st.set_page_config(
-    page_title=APP_TITTLE, 
-    page_icon=APP_ICON, 
-    layout="centered",
-    initial_sidebar_state="expanded",
-    menu_items={
-        "about": f"{APP_DESCRIPTION}\n\n**v.{APP_VERSION}**\n\n{APP_AUTHOR}\n\n{APP_AUTHOR_EMAIL}\n\n{APP_AUTHOR_WEBSITE}"
-    }
-    )
-
-st.title(f"{APP_ICON} {APP_TITTLE}")
-
-st.sidebar.title("ℹ️ Informacje")
-st.sidebar.markdown(f"**Opis:** {APP_DESCRIPTION}")
-st.sidebar.markdown(f"**Wersja:** {APP_VERSION}")
-st.sidebar.markdown(f"**Autor:** {APP_AUTHOR}")
-st.sidebar.markdown(f"**{APP_AUTHOR_EMAIL}**")
-st.sidebar.markdown(f"**{APP_AUTHOR_WEBSITE}**")
 
 # Inicjalizacja st.session_state
 
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
+
 if "trace_id" not in st.session_state:
-    with langfuse.start_as_current_span(name="chat-session") as root:
-        root.update_trace(
-            session_id=st.session_state.session_id,
-            metadata={"app": "yllia-demo", "source": "streamlit"},
-            tags=["yllia", "demo"]
-        )
-        st.session_state.trace_id = root.trace_id
+    st.session_state.trace_id = langfuse_service.create_trace(st.session_state.session_id)
+
 if "last_observation_id" not in st.session_state:
     st.session_state.last_observation_id = None
+
+if "output_feedback_given" not in st.session_state:
+    st.session_state.output_feedback_given = True
+
+if "session_feedback_given" not in st.session_state:
+    st.session_state.session_feedback_given = False
+
+if "turns" not in st.session_state:
+    st.session_state.turns = 0
+
+if "terms_accepted" not in st.session_state:
+    st.session_state.terms_accepted = False
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
     st.session_state.messages.append({"role": "assistant", "content": YLLIA_FIRST_MESSAGE})
-if "feedback_given" not in st.session_state:
-    st.session_state.feedback_given = True
-if "session_feedback_given" not in st.session_state:
-    st.session_state.session_feedback_given = False
-if "session_rating" not in st.session_state:
-    st.session_state.session_rating = 5
-if "session_comment" not in st.session_state:
-    st.session_state.session_comment = ""
-if "turns" not in st.session_state:
-    st.session_state.turns = 0
-if "begin_session" not in st.session_state:
-    st.session_state.begin_session = True
+
 
 #
-# Obsługa nowego trace'a - FUNKCJA PRYWATNA
+# Obsługa tokenów
 #
-def _new_trace():
-    st.session_state.trace_id = str(uuid.uuid4())
+if "token_total_count" not in st.session_state:
+    st.session_state.token_total_count = 0
+if "token_input_count" not in st.session_state:
+    st.session_state.token_input_count = 0
+if "token_output_count" not in st.session_state:
+    st.session_state.token_output_count = 0   
+
+#
+# Obsługa nowej sesji
+#
+def new_messages():
     st.session_state.messages = []
     st.session_state.messages.append({"role": "assistant", "content": YLLIA_FIRST_MESSAGE})
-    st.session_state.feedback_given = True
+
+def reset_session():
+    # Podsumowanie rozmowy
+    chat_summary = ask_openai("Podsumuj proszę naszą rozmowę.", ctx_static="", ctx_dynamic="", speech_history=summarize_full_history(st.session_state.messages))
+    st.session_state.input_count = len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(summarize_full_history(st.session_state.messages)))
+    st.session_state.output_count = len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(chat_summary))
+    st.session_state.token_total_count = st.session_state.input_count + st.session_state.output_count
+    supabase_service.messages_new(st.session_state.session_id, "Podsumowanie rozmowy", "", "", "", OPENAI_MODEL, st.session_state.input_count, st.session_state.output_count, chat_summary)
+    # Zakończenie sesji
+    supabase_service.sessions_update(st.session_state.session_id, chat_summary=chat_summary)
+    supabase_service.sessions_end(st.session_state.session_id)
+    
+    """Resetuje sesję i tworzy nowy trace."""
+    st.session_state.session_id = str(uuid.uuid4())
+    supabase_service.sessions_new(st.session_state.session_id)
+    prompt_service.save_prompts_to_database(st.session_state.session_id) # zapisujemy prompty do bazy danych
+    st.session_state.trace_id = langfuse_service.create_trace(st.session_state.session_id)
+    new_messages()
+    st.session_state.output_feedback_given = True
     st.session_state.session_feedback_given = False
-    st.session_state.session_rating = 5
-    st.session_state.session_comment = ""
     st.session_state.turns = 0
     st.session_state.last_observation_id = None
+
+
+#
+# Obsługa akceptacji warunków
+#
+
+with st.container():
+    if st.session_state.terms_accepted:
+        st.success(f"✅ **Warunki zakceptowane - możesz korzystać z aplikacji**\n\n {WARNING_CONTENT.strip()}")
+    else:
+        st.warning(f"**⚠️ Warunki korzystania z aplikacji Yllia:**\n\n {WARNING_CONTENT.strip()}")
+
+# Przycisk akceptacji - tylko gdy nie zaakceptowano
+if not st.session_state.terms_accepted:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("✅ Rozumiem i akceptuję", use_container_width=True, type="secondary"):
+            st.session_state.terms_accepted = True
+            st.rerun()
     
-    with langfuse.start_as_current_span(name="chat-session") as root:
-        root.update_trace(
-            session_id=st.session_state.session_id,
-            metadata={"app": "yllia-demo", "source": "streamlit"},
-            tags=["yllia", "demo"]
-        )
-        st.session_state.trace_id = root.trace_id
+    # Zatrzymaj renderowanie reszty aplikacji
+    st.stop()
+
+# Separator
+st.markdown("---")
+
+# Tutaj reszta Twojej aplikacji
+st.subheader("💬 Chat z Yllią")
 
 #
 # Przy nowej sesji - przycisk rozpoczęcia nowej sesji
 #
 
-if st.session_state.begin_session == False:
+if st.session_state.session_feedback_given == True:
     if st.button("Rozpocznij nową sesję", use_container_width=True):
-        st.session_state.begin_session = True
-        _new_trace()
+        st.session_state.session_feedback_given = False
+        reset_session()
         st.rerun()
     else:
         st.stop()
 
-#
-# Obsługa embedingów
-#
-
-def get_embeddings(text):
-    result = openai_client.embeddings.create(
-        input=text,
-        model=EMBEDDING_MODEL,
-        dimensions=EMBEDDING_DIMENSION,
-    )
-    return result.data[0].embedding
-
-def search_embeddings(text, collection_name):
-    results = qdrant_client.search(
-        collection_name=collection_name,
-        query_vector=get_embeddings(text),
-        limit=3,
-    )
-    return results
 
 #
-# Obsługa historii
+# Obsługa czatu
 #
 def render_history():
     for i, msg in enumerate(st.session_state.messages):
@@ -131,9 +134,7 @@ def render_history():
             st.write(msg["content"])
 render_history()
 
-#
-# Obsługa span
-#
+
 def ask_gpt(messages):
     response = openai_client.chat.completions.create(
         model=OPENAI_MODEL,
@@ -142,223 +143,89 @@ def ask_gpt(messages):
     return response.choices[0].message.content
 
 
-def handle_turn(user_input: str) -> tuple[str, str]:
-    with langfuse.start_as_current_span(
-        name="user-turn",
-        trace_context={"trace_id": st.session_state.trace_id}
-    ):
-        conversation = [{"role": msg["role"], "content": msg["content"]} for msg in st.session_state.messages]
-        # conversation.append({"role": "user", "content": user_input})
-
-        with langfuse.start_as_current_generation(
-            name="openai-call",
-            model=OPENAI_MODEL,
-            input=conversation,
-        ) as generation:
-            response = ask_gpt(conversation)
-            generation.update(output={"text": response})
-            generation.end()
-            st.session_state.last_observation_id = generation.id
-            st.session_state.feedback_given = False
-            return response, generation.id
-        
+    
 #
 # Obsługa promptu użytkownika
 #
-
-if prompt := st.chat_input("Zadaj pytanie:"):
-    
-    if st.session_state.turns >= MAX_TURNS and not st.session_state.session_feedback_given:
-        st.warning(
-            f"Przekroczono limit {MAX_TURNS} pytań w tej sesji. "
-            "Dziękuję za rozmowę! Proszę o końcową ocenę poniżej, a następnie rozpoczniemy nową sesję. 🙏"
-        )
-    else:
-        st.session_state.messages.append({"role": "user", "content": prompt})
+if user_input := st.chat_input("Zadaj pytanie:"):
+   
+    # Jeśli nie przekroczyliśmy limitu, generujemy odpowiedź
+    if st.session_state.turns < MAX_TURNS:
+        
+        # Dodajemy pytanie użytkownika do historii
+        st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
-            st.write(prompt)
-        response, obs_id = handle_turn(prompt)
-        st.session_state.messages.append({"role": "assistant", "content": response, "obs_id": obs_id})
-        with st.chat_message("assistant"):
-            st.write(response)
+            st.write(user_input)
+        
+        # Generujemy kontekst
+        answer_static = search_embeddings(user_input, QDRANT_COLLECTION_NAME)[0].payload["answer"]
+        answer_dynamic = search_embeddings(user_input, QDRANT_COLLECTION_NAME_DYNAMIC)[0].payload["answer"]
+        conversation_summarized = summarize_full_history(st.session_state.messages)
+       
+        # Generujemy odpowiedź
+        response, st.session_state.last_observation_id = langfuse_service.track_generation_complete(st.session_state.trace_id, OPENAI_MODEL, user_input, ask_openai, answer_static, answer_dynamic, conversation_summarized)
+        
+        # Dodajemy odpowiedź do historii i oznaczamy jako nieocenioną
+        st.session_state.output_feedback_given = False
+        st.session_state.messages.append({"role": "assistant", "content": response, "obs_id": st.session_state.last_observation_id})
+        
+        # Liczymy tokeny
+        st.session_state.token_input_count = len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(user_input + prompt_service.load_prompt(ctx_static=answer_static, ctx_dynamic=answer_dynamic, conversation_summarized=conversation_summarized)))
+        st.session_state.token_input_count += len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(user_input))
+        st.session_state.token_output_count = len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(st.session_state.messages[-1]["content"]))
+        st.session_state.token_total_count += st.session_state.token_input_count + st.session_state.token_output_count
+        
+        # zapisujemy wiadomość do bazy danych
+        supabase_service.messages_new(st.session_state.session_id, user_input, answer_static, answer_dynamic, conversation_summarized, OPENAI_MODEL, st.session_state.token_input_count, st.session_state.token_output_count, st.session_state.messages[-1]["content"])
+
+        # Zwiększamy licznik tur
         st.session_state.turns += 1
 
-
+        # Pokazujemy odpowiedź i przyciski oceny w tym samym kontenerze
+        with st.chat_message("assistant"):
+            st.write(response)
+            
+# Przyciski oceny bezpośrednio pod odpowiedzią
+if not st.session_state.output_feedback_given:
+    c1, c2 = st.columns(2)
+    if c1.button("👍 Pomocne", key="up", use_container_width=True):
+        langfuse_service.create_feedback(st.session_state.trace_id, "up", st.session_state.last_observation_id)
+        supabase_service.messages_update_score(st.session_state.session_id, True)
+        st.toast("Dzięki za feedback! 👍", icon="✅")
+        st.session_state.output_feedback_given = True
+        st.rerun()
+    if c2.button("👎 Niepomocne", key="down", use_container_width=True):
+        langfuse_service.create_feedback(st.session_state.trace_id, "down", st.session_state.last_observation_id)
+        supabase_service.messages_update_score(st.session_state.session_id, False)
+        st.toast("Dzięki za feedback! 👎", icon="✅")
+        st.session_state.output_feedback_given = True
+        st.rerun()
 #
-# Obsługa feedbacku
+# Feedback końcowy po osiągnięciu limitu
 #
-ph = st.empty()
-
-if st.session_state.feedback_given == False:
-    with ph.container():
-        c1, c2 = st.columns(2)
-        if c1.button("👍 Pomocne", key=f"up", use_container_width=True):
-            langfuse.create_score(
-                name="user_feedback",
-                data_type="CATEGORICAL",
-                value="up",
-                trace_id=st.session_state.trace_id,
-                observation_id=st.session_state.last_observation_id
-            )
-            st.toast("Dzięki za feedback! 👍", icon="✅")
-            st.session_state.feedback_given = True
-        if c2.button("👎 Niepomocne", key=f"down", use_container_width=True):
-            langfuse.create_score(
-                name="user_feedback",
-                data_type="CATEGORICAL",
-                value="down",
-                trace_id=st.session_state.trace_id,
-                observation_id=st.session_state.last_observation_id
-            )
-            st.toast("Dzięki za feedback! 👎", icon="✅")
-            st.session_state.feedback_given = True
-        if st.session_state.feedback_given:
-            ph.empty()
-
-#
-# Feedback zbiorczy
-#
-
-st.markdown("---")
-if st.session_state.session_feedback_given == False:
-        
-    with st.expander("Oceń rozmowę.", expanded=False):
-        feedback_rating = st.slider("Twoja ocena od 1 (słabo) do 5 (super)", 1, 5, 5, help="1 - słabo, 5 = super")
-        feedback_comment = st.text_input("Komentarz(opcjonalnie)")
-        if st.button("Oceń", use_container_width=True):
-            langfuse.create_score(
-                name="session_feedback",
-                data_type="NUMERIC",
-                value=float(feedback_rating),
-                trace_id=st.session_state.trace_id,
-                comment=feedback_comment
-            )
-            langfuse.flush()
-            st.session_state.session_feedback_given = True
-            st.toast("Dziękuję za feedback!", icon="✅")
-            st.session_state.begin_session = False
-            st.rerun()
-
-
-def ask_chad_embeddings_responses(prompt: str, embedding: str, embedding_dynamic: str):
-    ctx_static = embedding or ""
-    ctx_dynamic = embedding_dynamic or ""
-
-    input_text = (
-        PROMPT_GENERAL + "\n\n"
-        "# ROLA I TOŻSAMOŚĆ\n"
-        "Jesteś Yllia, profesjonalną wirtualną asystentką gabinetu psychiatrycznego dra Damiana Siwickiego. "
-        "Odpowiadasz WYŁĄCZNIE w języku polskim.\n\n"
-        
-        "# GŁÓWNE ZASADY ODPOWIADANIA\n"
-        "1. **ZAWSZE analizuj oba konteksty przed odpowiedzią** - zarówno statyczny jak i dynamiczny zawierają kluczowe informacje\n"
-        "2. **Odpowiadaj szczegółowo i kompletnie** - wykorzystuj wszystkie dostępne informacje z kontekstów\n"
-        "3. **Cytuj konkretne informacje** z kontekstu, gdy są dostępne\n"
-        "4. **Łącz informacje** z obu kontekstów, jeśli uzupełniają się\n"
-        "5. Bądź **ciepła, empatyczna i pomocna** przy zachowaniu profesjonalizmu\n\n"
-        
-        "# HIERARCHIA INFORMACJI\n"
-        "- **KONTEKST DYNAMICZNY**: dane administracyjne, godziny, kontakt, ceny - ZAWSZE AKTUALNE\n"
-        "- **KONTEKST STATYCZNY**: odpowiedzi na częste pytania pacjentów - sprawdzone informacje\n"
-        "- Jeśli informacje się różnią, priorytet ma kontekst dynamiczny\n"
-        "- Jeśli nie wywnioskujesz inaczej, to priorytet ma kierowanie kontaktu na rejestrację poszczególnych gabinetów gdzie przyjmuje lekarz\n\n"
-        
-        "# INSTRUKCJE ODPOWIADANIA\n"
-        "## Gdy masz informacje w kontekście:\n"
-        "- Udziel pełnej, szczegółowej odpowiedzi\n"
-        "- Wykorzystaj WSZYSTKIE istotne informacje z kontekstów\n"
-        "- Dodaj praktyczne wskazówki, jeśli są w kontekście\n"
-        "- Jeśli w kontekście są numery telefonów, godziny, ceny - podaj je\n\n"
-        
-        "## Gdy brakuje informacji:\n"
-        "Odpowiedz: 'Niestety, nie mam tej informacji w mojej bazie danych. Polecam skontaktować się bezpośrednio z gabinetem.'\n\n"
-        
-        "## Pytania poza zakresem:\n"
-        "- **Kryzysy psychiczne**: 'W sytuacjach kryzysowych proszę skontaktować się z Pogotowiem Ratunkowym (112) lub najbliższym szpitalem psychiatrycznym.'\n"
-        "- **Tematy niezwiązane z gabinetem**: 'Jestem asystentką gabinetu psychiatrycznego i odpowiadam tylko na pytania związane z naszymi usługami.'\n"
-        "- **Prywatne sprawy doktora**: 'Nie mogę udzielać informacji o sprawach prywatnych.'\n\n"
-        
-        "# PRZYKŁAD DOBREJ ODPOWIEDZI\n"
-        "Zamiast: 'Tak, przyjmujemy pacjentów.'\n"
-        "Napisz: 'Tak, dr Damian Siwicki prowadzi konsultacje psychiatryczne. Gabinet przyjmuje [dni/godziny z kontekstu]. Wizytę można umówić telefonicznie pod numerem [numer z kontekstu] lub [inne sposoby z kontekstu]. Koszt konsultacji to [cena z kontekstu].'\n\n"
-        
-        "---\n\n"
-        "### KONTEKST STATYCZNY (odpowiedzi na częste pytania pacjentów):\n" + ctx_static + "\n\n"
-        "### KONTEKST DYNAMICZNY (aktualne dane administracyjne gabinetu):\n" + ctx_dynamic + "\n\n"
-        "### PYTANIE PACJENTA:\n" + prompt + "\n\n"
-        
-        "**Przeanalizuj oba konteksty, sprawdź czy to nie jest sytuacja nagła lub nieodpowiednia, a następnie udziel kompletnej, pomocnej odpowiedzi wykorzystując wszystkie dostępne informacje.**"
-    )
-    with st.sidebar:
-        st.write(prompt)
-    resp = openai_client.responses.create(
-        model=OPENAI_MODEL,  # np. "o4-mini" / "o3"
-        input=input_text,
-        temperature=0.2,
-    )
-    # Tekstowy output jest zwykle pod resp.output_text
-    return getattr(resp, "output_text", "").strip()
-
-try:
-    st.caption(st.session_state.messages[-2]["content"])
-
-    search_qdrant = search_embeddings(st.session_state.messages[-2]["content"], QDRANT_COLLECTION_NAME)
-
-    for result in search_qdrant:
-        st.write(result.score, '...', result.payload["answer"])
-
-    search_qdrant_dynamic = search_embeddings(st.session_state.messages[-2]["content"], QDRANT_COLLECTION_NAME_DYNAMIC)
-    for result in search_qdrant_dynamic:
-        st.write(result.score, '...', result.payload["answer"])
-    
-    st.write("Odpowiedź z Qdrant:")
-    
-    st.write('Historia:' + ask_openai_simple("Odpowiedz cokolwiek"))
-    st.write(build_context(st.session_state.messages))
-    response = ask_chad_embeddings_responses(st.session_state.messages[-2]["content"], search_qdrant[0].payload["answer"], search_qdrant_dynamic[0].payload["answer"])
-    st.write(response)
-
-except:
-    pass
-
-
-# ---------- Render historii ----------
-# for i, msg in enumerate(st.session_state.messages):
-#     with st.chat_message(msg["role"]):
-#         st.write(msg["content"])
-
-#     # Tylko dla asystenta: pokaż feedback jeśli nie oceniono
-#     if msg["role"] == "assistant" and "obs_id" in msg and msg["obs_id"] not in st.session_state.rated_obs_ids:
-#         ph = st.empty()
-#         with ph.container():
-#             c1, c2 = st.columns(2)
-#             if c1.button("👍 Pomocne", key=f"up_{i}", use_container_width=True):
-#                 langfuse.create_score(
-#                     name="user_feedback",
-#                     data_type="CATEGORICAL",
-#                     value="up",
-#                     trace_id=st.session_state.trace_id,
-#                     observation_id=msg["obs_id"]
-#                 )
-#                 st.session_state.rated_obs_ids.add(msg["obs_id"])
-#                 st.toast("Dzięki za feedback! 👍", icon="👍")
-#                 ph.empty()
-#             if c2.button("👎 Niepomocne", key=f"down_{i}", use_container_width=True):
-#                 langfuse.create_score(
-#                     name="user_feedback",
-#                     data_type="CATEGORICAL",
-#                     value="down",
-#                     trace_id=st.session_state.trace_id,
-#                     observation_id=msg["obs_id"]
-#                 )
-#                 st.session_state.rated_obs_ids.add(msg["obs_id"])
-#                 st.toast("Dzięki za feedback! 👎", icon="👎")
-#                 ph.empty()
-
-
-with st.sidebar:
+if st.session_state.turns >= MAX_TURNS:
     st.markdown("---")
-    st.markdown("## Testy")
-    st.text_input("Test", key="test")
-    if st.button("Test", key="test_button"):
-        st.write(st.session_state.test)
+    # Pokazujemy expander zawsze po osiągnięciu limitu, jeśli rozmowa nie została jeszcze oceniona
+    if not st.session_state.session_feedback_given:
+        st.warning(
+            f"Przekroczono limit {MAX_TURNS} pytań w tej sesji. "
+            "Dziękuję za rozmowę! Proszę o ocenę ostatniej odpowiedzi oraz całej rozmowy poniżej. 🙏"
+        )
+        with st.expander("Oceń całą rozmowę", expanded=True):
+            session_feedback_rating = st.slider(
+                "Twoja ocena od 1 (słabo) do 5 (super)", 
+                1, 5, 5, 
+                help="1 - słabo, 5 = super"
+            )
+            session_feedback_comment = st.text_input("Komentarz (opcjonalnie)")
+            
+            if st.button("Zakończ i oceń", use_container_width=True):
+                langfuse_service.create_session_rating(
+                    st.session_state.trace_id, 
+                    session_feedback_rating, 
+                    session_feedback_comment
+                )
+                st.session_state.session_feedback_given = True
+                st.toast("Dziękuję za ocenę rozmowy! 🌟", icon="✅")
+                st.rerun()
+

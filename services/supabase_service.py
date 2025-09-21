@@ -1,6 +1,6 @@
 from supabase import create_client
 from config.config import SUPABASE_URL, SUPABASE_KEY
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -31,10 +31,10 @@ def sessions_end(session_id: str):
     Zamyka sesję w Supabase.
     """
     return supabase.table("yllia_sessions").update({
-        "ended_at": datetime.now(),
+        "ended_at": datetime.now(timezone.utc).isoformat(),
     }).eq("session_id", session_id).execute()
 
-def sessions_update(session_id: str, score_final: int, score_note: str = "", chat_summary: str = ""):
+def sessions_update(session_id: str, score_final: int = None, score_note: str = "", chat_summary: str = ""):
     """
     Aktualizuje sesję w Supabase.
     """
@@ -62,42 +62,87 @@ def sessions_get(session_id: str):
 # context_history text string
 # score_up_down boolean boolean
 # model text string
-# usage jsonb string
+# usage_input smallint number
+# usage_output smallint number
+# chat_output text string
 #
 
-def messages_new(session_id: int, user_input: str, context_static: str, context_dynamic: str, context_history: str = "", model: str = "", usage: str = ""):
+
+def messages_new(session_id: str, user_input: str, context_static: str, context_dynamic: str, context_history: str = "", model: str = "", usage_input: int = 0, usage_output: int = 0, chat_output: str = ""):
     """
     Tworzy nową wiadomość w Supabase.
+    
+    Args:
+        session_id: UUID sesji w formie stringa
+        user_input: pytanie użytkownika
+        context_static: kontekst statyczny (baza wiedzy)
+        context_dynamic: kontekst dynamiczny (dane administracyjne)
+        context_history: historia rozmowy
+        model: nazwa modelu
+        usage_input: liczba tokenów wejściowych
+        usage_output: liczba tokenów wyjściowych
+        chat_output: odpowiedź asystenta
     """
-    return supabase.table("yllia_messages").insert({
+    result = supabase.table("yllia_messages").insert({
         "session_id": session_id,
         "user_input": user_input,
         "context_static": context_static,
         "context_dynamic": context_dynamic,
         "context_history": context_history,
         "model": model,
-        "usage": usage
+        "usage_input": usage_input,
+        "usage_output": usage_output,
+        "chat_output": chat_output
     }).execute()
+    return result
 
-def messages_score(message_id: int, score_up_down: bool):
-    """
-    Aktualizuje ocenę wiadomości w Supabase.
-    """
-    return supabase.table("yllia_messages").update({
-        "score_up_down": score_up_down
-    }).eq("id", message_id).execute()
 
-def messages_get(message_id: int):
+def messages_update_score(session_id: str, score_up_down: bool):
     """
-    Pobiera wiadomość z Supabase.
+    Aktualizuje feedback (👍/👎) dla ostatniej wiadomości w sesji.
+    
+    Args:
+        session_id: UUID sesji w formie stringa
+        score_up_down: True dla 👍, False dla 👎
     """
-    return supabase.table("yllia_messages").select("*").eq("id", message_id).execute()
-
-def messages_get_by_session_id(session_id: int):
-    """
-    Pobiera wiadomości z Supabase po id sesji.
-    """
-    return supabase.table("yllia_messages").select("*").eq("session_id", session_id).execute()  
+    try:
+        # Upewnij się że session_id jest stringiem
+        session_id_str = str(session_id)
+        
+        print(f"[DEBUG] Updating score for session_id: {session_id_str}")
+        print(f"[DEBUG] Score value: {score_up_down}")
+        
+        # Pobierz ID ostatniej wiadomości
+        last_message = supabase.table("yllia_messages")\
+            .select("id, session_id, created_at")\
+            .eq("session_id", session_id_str)\
+            .order("created_at", desc=True)\
+            .limit(1)\
+            .execute()
+        
+        print(f"[DEBUG] Query result: {last_message}")
+        print(f"[DEBUG] Found messages: {last_message.data}")
+        
+        if not last_message.data:
+            print(f"[WARNING] No messages found for session {session_id_str}")
+            return
+        
+        message_id = last_message.data[0]["id"]
+        created_at = last_message.data[0]["created_at"]
+        print(f"[DEBUG] Found message: id={message_id}, created_at={created_at}")
+        
+        # Zaktualizuj feedback
+        update_result = supabase.table("yllia_messages")\
+            .update({"score_up_down": score_up_down})\
+            .eq("id", message_id)\
+            .execute()
+            
+        print(f"[DEBUG] Update result: {update_result}")
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to update message score: {str(e)}")
+        raise  # Re-raise exception to handle it in the calling code
+    
 
 #
 # Obsługa tabeli: yllia_prompts

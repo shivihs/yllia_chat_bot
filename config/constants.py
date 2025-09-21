@@ -8,7 +8,19 @@ APP_AUTHOR = "Damian Siwicki"
 APP_AUTHOR_EMAIL = "poczta@siwicki.info"
 APP_AUTHOR_WEBSITE = "https://siwicki.info"
 
+WARNING_CONTENT = """
+- **To nie są porady medyczne** – Yllia jest wirtualną asystentką edukacyjną, nie zastępuje konsultacji z lekarzem.  
+- **W nagłych przypadkach** – Zadzwoń pod numer alarmowy **112** lub zgłoś się do najbliższego SOR.  
+- **Wersja testowa** – Aplikacja znajduje się w fazie testów i może zawierać błędy.  
+- **Cel aplikacji** – Yllia ma na celu wsparcie pacjentów w przygotowaniu się do wizyty w gabinecie.  
+- **Ochrona danych** – Proszę nie podawać danych osobowych ani wrażliwych. Aplikacja nie służy do gromadzenia takich informacji, a wpisywane treści są przesyłane do systemów OpenAI w celu wygenerowania odpowiedzi.  
+- **Weryfikacja informacji** – Zawsze skonsultuj otrzymane informacje z lekarzem lub farmaceutą.  
+
+Korzystając z aplikacji, potwierdzasz, że rozumiesz i akceptujesz powyższe ograniczenia.
+"""
+
 OPENAI_MODEL = "gpt-4o-mini"
+
 OPENAI_PRICING = {
     "gpt-4o": {
         "input_per_million": 2.50,  # USD
@@ -24,7 +36,7 @@ USD_TO_PLN = 3.63
 
 YLLIA_FIRST_MESSAGE = "Cześć, jestem Yllia, z przyjemnością odpowiem na Twoje pytania."
 
-MAX_TURNS = 10
+MAX_TURNS = 3
 
 EMBEDDING_MODEL = "text-embedding-3-large"
 EMBEDDING_DIMENSION = 3072

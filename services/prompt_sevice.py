@@ -33,5 +33,4 @@ def load_prompt(ctx_static: str, ctx_dynamic: str, conversation_summarized: str)
     
     # podmiana znaczników
     system_prompt = prompt_template.replace("ctx_static", ctx_static).replace("ctx_dynamic", ctx_dynamic).replace("conversation_summarized", conversation_summarized)
-    print(system_prompt)
     return system_prompt
