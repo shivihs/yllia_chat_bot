@@ -6,7 +6,8 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 from dotenv import load_dotenv
 from openai import OpenAI
 from config.constants import * # APP_TITTLE, APP_ICON, APP_DESCRIPTION, APP_VERSION, APP_AUTHOR, APP_AUTHOR_EMAIL, APP_AUTHOR_WEBSITE, OPENAI_MODEL, YLLIA_FIRST_MESSAGE, MAX_TURNS, EMBEDDING_MODEL, EMBEDDING_DIMENSION, QDRANT_COLLECTION_NAME
-
+from utils.history import build_context
+from services.openai_service import ask_openai_simple
 
 # Inicjalizacja zmiennych sekretnych
 load_dotenv()
@@ -311,10 +312,15 @@ try:
         st.write(result.score, '...', result.payload["answer"])
     
     st.write("Odpowiedź z Qdrant:")
+    
+    st.write('Historia:' + ask_openai_simple("Odpowiedz cokolwiek"))
+    st.write(build_context(st.session_state.messages))
     response = ask_chad_embeddings_responses(st.session_state.messages[-2]["content"], search_qdrant[0].payload["answer"], search_qdrant_dynamic[0].payload["answer"])
     st.write(response)
+
 except:
     pass
+
 
 # ---------- Render historii ----------
 # for i, msg in enumerate(st.session_state.messages):
@@ -348,3 +354,11 @@ except:
 #                 st.session_state.rated_obs_ids.add(msg["obs_id"])
 #                 st.toast("Dzięki za feedback! 👎", icon="👎")
 #                 ph.empty()
+
+
+with st.sidebar:
+    st.markdown("---")
+    st.markdown("## Testy")
+    st.text_input("Test", key="test")
+    if st.button("Test", key="test_button"):
+        st.write(st.session_state.test)
