@@ -1,134 +1,210 @@
-# 🌸 Yllia – wirtualna asystentka gabinetu psychiatrycznego
+# ✨ Yllia – wirtualna asystentka gabinetu psychiatrycznego
 
-Yllia to cyfrowa asystentka gabinetu psychiatrycznego.  
-Odpowiada pacjentom na pytania dotyczące gabinetu, łącząc kontekst statyczny (FAQ) i dynamiczny (np. godziny, urlopy).  
-Działa w oparciu o modele OpenAI, bazę wektorową Qdrant, bazę Supabase i system obserwowalności Langfuse.  
+Yllia to profesjonalna wirtualna asystentka gabinetu psychiatrycznego.  
+Powstała, aby w prosty, życzliwy i zrozumiały sposób odpowiadać na najczęstsze pytania pacjentów.  
+Nie zastępuje lekarza ani rejestracji, ale pomaga odnaleźć się w organizacji pracy gabinetu oraz przygotować się do wizyty.
 
----
-
-## ✨ Główne zasady
-- **Profesjonalizm i empatia** – Yllia zawsze odpowiada ciepło, jasno i kompletnie.
-- **Źródła informacji**:
-  - **Kontekst dynamiczny** (np. godziny, urlopy, ceny) – priorytet.
-  - **Kontekst statyczny** (FAQ, najczęstsze pytania pacjentów).
-- **Bezpieczeństwo** – w sytuacjach kryzysowych kieruje na 112 lub do szpitala psychiatrycznego.
-- **Zakres** – odpowiada wyłącznie na pytania związane z gabinetem.
+**Wersja:** 2.0 (testowa)  
+**Autor:** Damian Siwicki
 
 ---
 
-## 🏗️ Architektura projektu
+## ✨ Główne funkcjonalności
+
+### 🔄 System sesyjny
+- **Limit pytań**: Maksymalnie 5 pytania na sesję
+- **Inteligentne podsumowania**: Automatyczne streszczanie historii rozmowy
+- **Notatki dla pacjenta**: Czytelne podsumowanie po zakończeniu sesji
+- **Akceptacja warunków**: Obowiązkowe zapoznanie się z zasadami korzystania
+
+### 🧠 Inteligentne odpowiedzi
+- **Podwójny kontekst**: Łączenie informacji statycznych (FAQ) i dynamicznych (aktualności)
+- **RAG (Retrieval Augmented Generation)**: Wyszukiwanie w bazie wiedzy poprzez embeddingi
+- **Priorytetyzacja**: Kontekst dynamiczny ma pierwszeństwo przed statycznym
+- **Kompletność**: Wykorzystanie wszystkich dostępnych informacji z kontekstu
+
+### 📊 Monitoring i feedback
+- **System ocen**: Thumbs up/down dla każdej odpowiedzi
+- **Ocena sesji**: Skala 1-5 z opcjonalnym komentarzem na koniec
+- **Śledzenie tokenów**: Precyzyjne liczenie kosztów OpenAI
+- **Pełna obserwowalność**: Integracja z Langfuse
+
+### 🛡️ Bezpieczeństwo
+- **Wykrywanie kryzysów**: Automatyczne kierowanie do służb ratunkowych (112)
+- **Ograniczenia tematyczne**: Odpowiedzi wyłącznie w zakresie gabinetu
+- **Ochrona danych**: Jasne komunikaty o przetwarzaniu danych przez OpenAI
+- **Walidacja granic**: Uprzejme wyznaczanie ram rozmowy
+
+---
+
+## 🏗️ Architektura techniczna
 
 ### 🔄 Przepływ danych
-1. **Użytkownik** wpisuje pytanie w aplikacji Streamlit.
-2. **Supabase** – zapis pytania w tabeli `messages` (powiązanej z `sessions`).
-3. **Qdrant** – generowanie embeddingu pytania i wyszukiwanie podobnych w:
-   - kolekcji `yllia_static` (FAQ),
-   - kolekcji `yllia_dynamic` (dane bieżące).
-4. **Prompts** – budowa pełnego promptu (`prompt_general.md`) z kontekstem.
-5. **OpenAI** – generowanie odpowiedzi.
-6. **Supabase** – zapis odpowiedzi w `messages`.
-7. **Langfuse** – logowanie całej interakcji.
-8. **Streamlit** – wyświetlenie odpowiedzi użytkownikowi.
+1. **Akceptacja warunków** – obowiązkowe przed rozpoczęciem
+2. **Inicjalizacja sesji** – utworzenie UUID i trace w Langfuse
+3. **Przetwarzanie pytania**:
+   - Generowanie embeddingu (OpenAI `text-embedding-3-large`)
+   - Wyszukiwanie w Qdrant (kolekcje statyczna i dynamiczna)
+   - Streszczenie historii rozmowy
+4. **Generowanie odpowiedzi** – OpenAI `gpt-4o-mini` z pełnym kontekstem
+5. **Zapis do bazy** – Supabase (sesje, wiadomości, feedback)
+6. **Monitoring** – Langfuse (traces, generations, scores)
+7. **Finalizacja sesji** – podsumowanie dla pacjenta i zamknięcie
 
----
-
-## 📂 Struktura katalogów
-
+### 📂 Struktura projektu
+```
 yllia_app/
-│── app.py # główny plik aplikacji (Streamlit)
-│
-├── config/ # konfiguracja
-│ ├── config.py # klucze i ustawienia środowiskowe (.env)
-│ └── constants.py # stałe globalne (role, limity, nazwy tabel, kolekcje)
-│
-├── services/ # logika komunikacji z zewnętrznymi usługami
-│ ├── openai_service.py # komunikacja z OpenAI
-│ ├── langfuse_service.py # komunikacja z Langfuse
-│ ├── supabase_service.py # komunikacja z Supabase
-│ └── qdrant_service.py # komunikacja z Qdrant
-│
-├── utils/ # funkcje pomocnicze
-│ ├── embeddings.py # generowanie embeddingów
-│ ├── prompts.py # ładowanie promptów i podstawianie kontekstów
-│ └── history.py # skracanie i streszczanie kontekstu rozmowy
-│
-├── prompts/ # pliki promptów w formacie Markdown
-│ ├── prompt_general.md # główna rola Yllii (odpowiedzi dla pacjentów)
-│ ├── prompt_summary.md # streszczanie historii rozmów
-│ └── prompt_embeddings.md # przygotowanie odpowiedzi do embeddingów
-│
-└── data/ # dane statyczne/dynamiczne (JSON, CSV itp.)
-
----
-- yllia_app/
-  - app.py
-  - config/
-    - config.py
-    - constants.py
-  - services/
-    - openai_service.py
-    - langfuse_service.py
-    - supabase_service.py
-    - qdrant_service.py
-  - utils/
-    - embeddings.py
-    - prompts.py
-    - history.py
-  - prompts/
-    - prompt_general.md
-    - prompt_summary.md
-    - prompt_embeddings.md
-  - data/
+├── app.py                      # główna aplikacja Streamlit
+├── config/
+│   ├── config.py              # konfiguracja środowiskowa (.env)
+│   └── constants.py           # stałe globalne
+├── services/
+│   ├── openai_service.py      # komunikacja z OpenAI
+│   ├── langfuse_service.py    # observability i monitoring
+│   ├── supabase_service.py    # baza danych relacyjna
+│   ├── qdrant_service.py      # baza wektorowa (embeddingi)
+│   ├── conversation_service.py # streszczanie rozmów
+│   └── prompt_sevice.py       # zarządzanie promptami
+├── prompts/
+│   ├── prompt_general.md      # główny prompt Yllii
+│   ├── prompt_summary.md      # streszczanie historii
+│   └── prompt_patients_summary.md # notatki dla pacjentów
+└── assets/
+    └── yllia_profile.png      # awatar w aplikacji
+```
 
 ---
 
-## 🗄️ Struktura bazy Supabase
+## 🗄️ Bazy danych
 
-### Tabela `sessions`
-| Kolumna      | Typ        | Opis |
-|--------------|------------|------|
-| id           | UUID (PK)  | unikalny identyfikator sesji |
-| created_at   | timestampz | start sesji |
-| ended_at     | timestampz | koniec sesji (opcjonalnie) |
-| user_agent   | text       | dane o urządzeniu (opcjonalnie) |
-| meta         | jsonb      | dodatkowe dane |
+### Supabase - tabele
+#### `yllia_sessions`
+| Kolumna | Typ | Opis |
+|---------|-----|------|
+| id | bigint | klucz główny |
+| session_id | uuid | identyfikator sesji |
+| started_at | timestampz | rozpoczęcie sesji |
+| ended_at | timestampz | zakończenie sesji |
+| score_final | smallint | ocena końcowa (1-5) |
+| score_note | text | komentarz użytkownika |
+| chat_summary | text | podsumowanie rozmowy |
+| usage_total | int | łączna liczba tokenów |
 
-### Tabela `messages`
-| Kolumna      | Typ        | Opis |
-|--------------|------------|------|
-| id           | bigserial  | klucz główny |
-| session_id   | UUID (FK)  | powiązanie do `sessions` |
-| created_at   | timestampz | czas wysłania |
-| role         | text       | `user` lub `assistant` |
-| content      | text       | treść wiadomości |
-| summary      | text       | streszczenie (opcjonalnie) |
-| meta         | jsonb      | dodatkowe dane (np. feedback) |
+#### `yllia_messages`  
+| Kolumna | Typ | Opis |
+|---------|-----|------|
+| id | bigint | klucz główny |
+| session_id | uuid | powiązanie z sesją |
+| user_input | text | pytanie pacjenta |
+| context_static | jsonb | kontekst statyczny (FAQ) |
+| context_dynamic | jsonb | kontekst dynamiczny |
+| context_history | text | streszczona historia |
+| chat_output | text | odpowiedź Yllii |
+| score_up_down | boolean | ocena odpowiedzi (👍/👎) |
+| model | text | użyty model OpenAI |
+| usage_input | smallint | tokeny wejściowe |
+| usage_output | smallint | tokeny wyjściowe |
+| created_at | timestampz | czas utworzenia |
 
-### Tabela `feedback` (opcjonalna)
-| Kolumna      | Typ        | Opis |
-|--------------|------------|------|
-| id           | bigserial  | klucz główny |
-| message_id   | bigint (FK)| powiązanie do `messages` |
-| rating       | smallint   | ocena (-1 / 0 / +1) |
-| comment      | text       | komentarz użytkownika |
-| created_at   | timestampz | czas dodania |
+#### `yllia_prompts`
+| Kolumna | Typ | Opis |
+|---------|-----|------|
+| id | bigint | klucz główny |
+| session_id | uuid | powiązanie z sesją |
+| prompt_name | text | nazwa promptu |
+| prompt | text | treść promptu |
+| created_at | timestampz | czas zapisu |
+
+### Qdrant - kolekcje wektorowe
+- **`yllia_chat_bot`** - statyczna baza wiedzy (FAQ)
+- **`yllia_dynamic_qna`** - dynamiczne dane administracyjne
+- **Model embeddingów**: `text-embedding-3-large` (3072 wymiary)
+- **Metryka**: Cosine similarity
+
+---
+
+## 🚀 Stack technologiczny
+
+### Core Technologies
+- **Frontend**: Streamlit 1.48.1 (interfejs czatu)
+- **LLM**: OpenAI GPT-4o-mini (generowanie odpowiedzi)
+- **Embeddings**: OpenAI text-embedding-3-large (wyszukiwanie semantyczne)
+- **Vector DB**: Qdrant (przechowywanie embeddingów)
+- **Database**: Supabase (PostgreSQL - sesje, wiadomości, feedback)
+- **Observability**: Langfuse (monitoring, traces, feedback)
+
+### Supporting Libraries
+- **tiktoken** - liczenie tokenów OpenAI
+- **python-dotenv** - zarządzanie zmiennymi środowiskowymi
+- **PIL (Pillow)** - obsługa obrazków (awatar)
+- **uuid** - generowanie identyfikatorów sesji
+
+### Konfiguracja środowiskowa
+```env
+# OpenAI
+OPENAI_API_KEY=sk-...
+
+# Supabase
+SUPABASE_URL=https://...
+SUPABASE_SECRET_KEY=...
+
+# Qdrant
+QDRANT_URL=http://localhost:6333
+QDRANT_API_KEY=...
+
+# Langfuse
+LANGFUSE_SECRET_KEY=sk-...
+LANGFUSE_HOST=https://cloud.langfuse.com
+LANGFUSE_ENABLED=true
+```
 
 ---
 
-## 🚀 Technologie
+## 📊 Kluczowe metryki
 
-- **Frontend**: Streamlit (chat UI)  
-- **LLM**: OpenAI GPT (domyślnie `gpt-4o-mini`)  
-- **Vector DB**: Qdrant (kolekcje: `yllia_static`, `yllia_dynamic`)  
-- **Relacyjna DB**: Supabase (tabele: `sessions`, `messages`, `feedback`)  
-- **Observability**: Langfuse (śledzenie i feedback interakcji)  
+### Tokeny i koszty
+- **Model główny**: `gpt-4o-mini` ($0.15/$0.60 za M tokenów)
+- **Embeddingi**: `text-embedding-3-large`
+- **Kurs**: 1 USD = 3.63 PLN (w stałych)
+- **Śledzenie**: Precyzyjne liczenie input/output tokenów
+
+### Limity sesji
+- **Maksymalnie**: 5 pytań na sesję
+- **Powód**: Kontrola kosztów i jakości doświadczenia
+- **Reset**: Automatyczny po ocenie końcowej
+
+### Feedback system
+- **Per odpowiedź**: 👍/👎 z zapisem do Supabase i Langfuse
+- **Per sesja**: Ocena 1-5 + opcjonalny komentarz
+- **Analityka**: Pełne śledzenie w Langfuse traces
 
 ---
 
-## 📌 TODO / rozwój
-- [ ] Dodać generowanie streszczeń historii do `utils/history.py`
-- [ ] Rozbudować feedback użytkowników w Supabase
-- [ ] Przygotować panel admina do edycji kontekstu dynamicznego
-- [ ] Deploy aplikacji na Streamlit Cloud / własny serwer
+## 🔧 Uruchomienie
+
+### Wymagania
+1. Python 3.8+
+2. Klucze API: OpenAI, Supabase, Langfuse
+3. Instancja Qdrant (lokalnie lub cloud)
+4. Plik `.env` z konfiguracją
+
+### Instalacja
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+### Struktura promptów
+- **Główny prompt** (`prompt_general.md`) - pełna rola i instrukcje dla Yllii
+- **Streszczenia** (`prompt_summary.md`) - kompresja historii rozmowy  
+- **Notatki pacjenta** (`prompt_patients_summary.md`) - czytelne podsumowania
 
 ---
+
+## 📞 Kontakt i wsparcie
+
+**Autor**: Damian Siwicki  
+**Email**: poczta@siwicki.info  
+**Website**: https://damiansiwicki.pl
+
+**Uwaga**: Aplikacja jest w wersji testowej. Yllia nie zastępuje konsultacji medycznej i służy wyłącznie celom informacyjnym dotyczącym organizacji pracy gabinetu psychiatrycznego.

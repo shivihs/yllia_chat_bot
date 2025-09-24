@@ -1,0 +1,20 @@
+# .cursorrules for Yllia
+
+rules:
+  - description: "Komentarze i dokumentacja"
+    how: "Pisz komentarze i docstringi po polsku, zwięźle i jasno."
+
+  - description: "Styl kodowania"
+    how: "Stosuj PEP8 i typowanie. Kod ma być prosty i czytelny."
+
+  - description: "Integracje AI"
+    how: "Przy OpenAI pokazuj sposób liczenia tokenów i używaj streamingu, jeśli możliwe."
+
+  - description: "Konfiguracja"
+    how: "Klucze i hasła zawsze w .env przez pydantic-settings. Nigdy w kodzie."
+
+  - description: "Debugowanie"
+    how: "Dodawaj logi dla zapytań do OpenAI i Supabase, żeby łatwo śledzić błędy."
+
+  - description: "UI Streamlit"
+    how: "Interfejs ma być minimalistyczny, z prostym formatowaniem i przejrzystością."

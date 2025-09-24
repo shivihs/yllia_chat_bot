@@ -22,3 +22,4 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", None)  # jeśli nie ma autoryzacji,
 # Prompts
 PROMPT_GENERAL = os.path.join(os.path.dirname(__file__), "..", "prompts", "prompt_general.md") # Prompt z jakiego korzystamy w aplikacji
 PROMPT_SUMMARY = os.path.join(os.path.dirname(__file__), "..", "prompts", "prompt_summary.md") # Prompt do streszczenia historii rozmowy
+PROMPT_PATIENTS_SUMMARY = os.path.join(os.path.dirname(__file__), "..", "prompts", "prompt_patients_summary.md") # Prompt do streszczenia historii rozmowy dla pacjentów

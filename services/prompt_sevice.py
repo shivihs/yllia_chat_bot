@@ -1,4 +1,4 @@
-from config.config import PROMPT_GENERAL, PROMPT_SUMMARY
+from config.config import PROMPT_GENERAL, PROMPT_SUMMARY, PROMPT_PATIENTS_SUMMARY
 import services.supabase_service as supabase_service
 
 def load_prompt_from_file(PROMPT_NAME: str) -> str:
@@ -14,7 +14,7 @@ def save_prompts_to_database(session_id: str):
     """
     supabase_service.prompts_add(session_id, "PROMPT_GENERAL", load_prompt_from_file(PROMPT_GENERAL))
     supabase_service.prompts_add(session_id, "PROMPT_SUMMARY", load_prompt_from_file(PROMPT_SUMMARY))
-
+    supabase_service.prompts_add(session_id, "PROMPT_PATIENTS_SUMMARY", load_prompt_from_file(PROMPT_PATIENTS_SUMMARY))
 
 def load_prompt(PROMPT_NAME: str, **kwargs) -> str:
     """

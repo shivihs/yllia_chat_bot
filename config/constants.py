@@ -1,12 +1,20 @@
-APP_TITTLE = "Yllia - wirtualna asystentka"
+APP_TITTLE = "Yllia – wirtualna asystentka"
 APP_ICON = ":sparkles:"
-APP_DESCRIPTION = "\n\n**Yllia** – wirtualna asystentka gabinetu psychiatrycznego."    
-APP_DESCRIPTION += "\n\nPowstała, by w prosty i życzliwy sposób odpowiadać na najczęstsze pytania pacjentów."
-APP_DESCRIPTION += "\n\nNie zastępuje lekarza ani rejestracji, ale pomaga odnaleźć się w tym, jak wygląda praca gabinetu i czego można się spodziewać przed wizytą."
-APP_VERSION = "2.1.0 - testowa wersja"
+APP_DESCRIPTION = (
+    "\n\n**Yllia** – wirtualna asystentka gabinetu psychiatrycznego."
+    "\n\nPowstała, aby w prosty, życzliwy i zrozumiały sposób odpowiadać na najczęstsze pytania pacjentów."
+    "\n\nNie zastępuje lekarza ani rejestracji, ale pomaga odnaleźć się w organizacji pracy gabinetu oraz przygotować się do wizyty."
+    "\n\nCelem Yllii jest ułatwienie kontaktu i zmniejszenie niepewności przed spotkaniem ze specjalistą."
+)
+APP_VERSION = "v 2.0 (testowa)"
 APP_AUTHOR = "Damian Siwicki"
 APP_AUTHOR_EMAIL = "poczta@siwicki.info"
-APP_AUTHOR_WEBSITE = "https://siwicki.info"
+APP_AUTHOR_WEBSITE = "https://damiansiwicki.pl"
+
+AVATARS = {
+        "user": "👤",         # Awatar użytkownika
+        "assistant": "✨",    # Awatar asystenta
+    }
 
 WARNING_CONTENT = """
 - **To nie są porady medyczne** – Yllia jest wirtualną asystentką edukacyjną, nie zastępuje konsultacji z lekarzem.  
@@ -36,7 +44,7 @@ USD_TO_PLN = 3.63
 
 YLLIA_FIRST_MESSAGE = "Cześć, jestem Yllia, z przyjemnością odpowiem na Twoje pytania."
 
-MAX_TURNS = 3
+MAX_TURNS = 5
 
 EMBEDDING_MODEL = "text-embedding-3-large"
 EMBEDDING_DIMENSION = 3072

@@ -85,7 +85,6 @@ def track_generation_complete(
         ) as generation:
             response = response_callback(user_input, ctx_static, ctx_dynamic, speech_history)
             generation.update(output={"text": response})
-            generation.end()
             return response, generation.id
 
 
@@ -124,7 +123,6 @@ def track_generation_basic(
         ) as generation:
             response = response_callback(conversation)
             generation.update(output={"text": response})
-            generation.end()
             return response, generation.id
 
 #
