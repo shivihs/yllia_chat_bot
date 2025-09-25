@@ -1,5 +1,5 @@
 from supabase import create_client
-from config.config import SUPABASE_URL, SUPABASE_KEY
+from config.config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_TABLE_SESSIONS, SUPABASE_TABLE_MESSAGES, SUPABASE_TABLE_PROMPTS
 from datetime import datetime, timezone
 import os
 
@@ -21,7 +21,7 @@ def sessions_new(session_id: str):
     """
     Tworzy nową sesję w Supabase.
     """
-    return supabase.table("yllia_sessions").insert({
+    return supabase.table(SUPABASE_TABLE_SESSIONS).insert({
         "session_id": session_id,
         # "started_at": datetime.now()
     }).execute()
@@ -30,7 +30,7 @@ def sessions_end(session_id: str):
     """
     Zamyka sesję w Supabase.
     """
-    return supabase.table("yllia_sessions").update({
+    return supabase.table(SUPABASE_TABLE_SESSIONS).update({
         "ended_at": datetime.now(timezone.utc).isoformat(),
     }).eq("session_id", session_id).execute()
 
@@ -38,7 +38,7 @@ def sessions_update(session_id: str, score_final: int = None, score_note: str = 
     """
     Aktualizuje sesję w Supabase.
     """
-    return supabase.table("yllia_sessions").update({
+    return supabase.table(SUPABASE_TABLE_SESSIONS).update({
         "score_final": score_final,
         "score_note": score_note,
         "usage_total": usage_total,
@@ -49,7 +49,7 @@ def sessions_get(session_id: str):
     """
     Pobiera sesję z Supabase.
     """
-    return supabase.table("yllia_sessions").select("*").eq("session_id", session_id).execute()
+    return supabase.table(SUPABASE_TABLE_SESSIONS).select("*").eq("session_id", session_id).execute()
 
 #
 # Obsługa tabeli: yllia_messages
@@ -84,7 +84,7 @@ def messages_add(session_id: str, user_input: str, context_static: str, context_
         usage_output: liczba tokenów wyjściowych
         chat_output: odpowiedź asystenta
     """
-    result = supabase.table("yllia_messages").insert({
+    result = supabase.table(SUPABASE_TABLE_MESSAGES).insert({
         "session_id": session_id,
         "user_input": user_input,
         "context_static": context_static,
@@ -111,7 +111,7 @@ def messages_update_score(session_id: str, score_up_down: bool):
         session_id_str = str(session_id)
 
         # Pobierz ID ostatniej wiadomości
-        last_message = supabase.table("yllia_messages")\
+        last_message = supabase.table(SUPABASE_TABLE_MESSAGES)\
             .select("id, session_id, created_at")\
             .eq("session_id", session_id_str)\
             .order("created_at", desc=True)\
@@ -125,7 +125,7 @@ def messages_update_score(session_id: str, score_up_down: bool):
         created_at = last_message.data[0]["created_at"]
         
         # Zaktualizuj feedback
-        update_result = supabase.table("yllia_messages")\
+        update_result = supabase.table(SUPABASE_TABLE_MESSAGES)\
             .update({"score_up_down": score_up_down})\
             .eq("id", message_id)\
             .execute()
@@ -148,7 +148,7 @@ def prompts_add(session_id: str, prompt_name: str, prompt: str):
     """
     Tworzy nowy prompt w Supabase.
     """
-    return supabase.table("yllia_prompts").insert({
+    return supabase.table(SUPABASE_TABLE_PROMPTS).insert({
         "session_id": session_id,
         "prompt_name": prompt_name,
         "prompt": prompt
@@ -158,10 +158,10 @@ def prompts_get(prompt_name: str):
     """
     Pobiera prompt z Supabase.
     """
-    return supabase.table("yllia_prompts").select("*").eq("prompt_name", prompt_name).execute()
+    return supabase.table(SUPABASE_TABLE_PROMPTS).select("*").eq("prompt_name", prompt_name).execute()
 
 def prompts_get_all():
     """
     Pobiera wszystkie prompty z Supabase.
     """
-    return supabase.table("yllia_prompts").select("*").execute()
+    return supabase.table(SUPABASE_TABLE_PROMPTS).select("*").execute()

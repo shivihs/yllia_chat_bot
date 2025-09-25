@@ -15,6 +15,14 @@ LANGFUSE_ENABLED = os.getenv("LANGFUSE_ENABLED", "False").lower() == "true"
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SECRET_KEY")
 
+# Nazwy tabel Supabase (prod/test)
+ENVIRONMENT = os.getenv("ENVIRONMENT", "prod").lower()  # prod lub test
+TABLE_SUFFIX = "_test" if ENVIRONMENT == "test" else ""
+
+SUPABASE_TABLE_SESSIONS = f"yllia_sessions{TABLE_SUFFIX}"
+SUPABASE_TABLE_MESSAGES = f"yllia_messages{TABLE_SUFFIX}"
+SUPABASE_TABLE_PROMPTS = f"yllia_prompts{TABLE_SUFFIX}"
+
 # Qdrant
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", None)  # jeśli nie ma autoryzacji, zostaw None

@@ -44,8 +44,11 @@ def reset_token_counts():
 def new_session():
     # Tworzy nową sesję.
     st.session_state.session_id = str(uuid.uuid4())
+
+def initialize_session_in_db():
+    # Zapisuje sesję do bazy danych przy pierwszej interakcji użytkownika
     supabase_service.sessions_new(st.session_state.session_id)
-    prompt_service.save_prompts_to_database(st.session_state.session_id) # zapisujemy prompty do bazy danych
+    prompt_service.save_prompts_to_database(st.session_state.session_id)
 
 def new_trace():
     # Tworzy nowy trace.
@@ -68,10 +71,11 @@ def reset_session(final_score: int = None, final_note: str = ""):
     finalize_session(final_score, final_note)
     reset_messages()
     reset_token_counts()
-    # Tworzymy nową sesję i nowy trace.
+    # Tworzymy nową sesję (ale nie zapisujemy od razu do bazy)
     new_session()
-    new_trace()
     # Resetujemy stan sesji
+    st.session_state.trace_id = None
+    st.session_state.session_initialized = False
     st.session_state.output_feedback_given = True # Musi być True - żeby nie było opcji oceny pierwszej wiadomośći od Yllii
     st.session_state.turns = 0
     st.session_state.last_observation_id = None ## To reset dla langfuse
@@ -87,7 +91,12 @@ def reset_session(final_score: int = None, final_note: str = ""):
 if "session_id" not in st.session_state:
     new_session()
 if "trace_id" not in st.session_state:
-    new_trace()
+    # Tworzymy trace tylko gdy użytkownik faktycznie zaczyna interakcję
+    # Nie od razu przy przeładowaniu aplikacji
+    st.session_state.trace_id = None
+if "session_initialized" not in st.session_state:
+    # Flaga czy sesja została już zapisana do bazy danych
+    st.session_state.session_initialized = False
 if "last_observation_id" not in st.session_state:
     st.session_state.last_observation_id = None
 
@@ -211,6 +220,14 @@ if user_input := st.chat_input("Zadaj pytanie:"):
         st.session_state.session_summary, tokens_temp_input_count = summarize_full_history(st.session_state.messages)
         st.session_state.token_total_count += tokens_temp_input_count
         
+        # Inicjalizujemy sesję i trace przy pierwszej interakcji użytkownika
+        if not st.session_state.session_initialized:
+            initialize_session_in_db()
+            st.session_state.session_initialized = True
+        
+        if st.session_state.trace_id is None:
+            new_trace()
+        
         # Generujemy odpowiedź
         response, st.session_state.last_observation_id = langfuse_service.track_generation_complete(st.session_state.trace_id, OPENAI_MODEL, user_input, ask_openai, answer_static, answer_dynamic, st.session_state.session_summary)
         
@@ -233,6 +250,8 @@ if user_input := st.chat_input("Zadaj pytanie:"):
         # Pokazujemy odpowiedź i przyciski oceny w tym samym kontenerze
         with st.chat_message("assistant", avatar=AVATARS["assistant"]):
             st.write(response)
+
+
             
 # Przyciski oceny bezpośrednio pod odpowiedzią
 if not st.session_state.output_feedback_given:
@@ -256,29 +275,40 @@ if st.session_state.turns >= MAX_TURNS:
     st.markdown("---")
     # Pokazujemy expander zawsze po osiągnięciu limitu, jeśli rozmowa nie została jeszcze oceniona
     if not st.session_state.session_feedback_given:
-        st.warning(
+        if MAX_TURNS == 1:
+            st.warning(
             f"Osiągnięto limit {MAX_TURNS} pytań w tej sesji. "
-            "Dziękuję za rozmowę! Proszę o ocenę ostatniej odpowiedzi oraz całej rozmowy poniżej. 🙏 \n\nPo przesłaniu oceny możliwe będzie rozpoczęcie nowej sesji."
-        )
+            "Dziękuję za rozmowę i poproszę o ocenę podsumowującą. 🙏 \n\nPo przesłaniu oceny możliwe będzie rozpoczęcie nowej sesji."
+            )
+        else:
+            st.warning(
+            f"Dziękuję za rozmowę i poproszę o opinię podsumowującą. 🙏 \n\nPo przesłaniu oceny możliwe będzie rozpoczęcie nowej sesji."
+            )
         if not st.session_state.session_summary_generated:
             st.session_state.session_summary, st.session_state.token_input_count = summarize_full_history_for_patients(st.session_state.messages, st.session_state.session_summary)
             st.session_state.session_summary_generated = True
         st.success(f"📝**Podsumowanie**\n\n{st.session_state.session_summary}")
-        with st.expander("Oceń całą rozmowę", expanded=True):
+        with st.expander("Podziel się swoją opinią", expanded=True):
             session_feedback_rating = st.slider(
-                "Twoja ocena od 1 (słabo) do 5 (super):", 
+                "💡 Twoja ocena od 1 (słabo) do 5 (super):", 
                 1, 5, 5, 
                 help="1 - słabo, 5 - super"
             )
-            session_feedback_comment = st.text_input("Komentarz:", value="", placeholder="Podziel się swoją opinią o rozmowie (opcjonalnie)")[:500]
-            if st.button("Zakończ i oceń", use_container_width=True):
+            session_feedback_comment = st.text_input("🖊️ Komentarz:", value="", placeholder="Dodaj kilka słów od siebie… (opcjonalnie)")[:500]
+            if st.button("✅ Prześlij opinię", use_container_width=True):
                 langfuse_service.create_session_rating(
                     st.session_state.trace_id, 
                     session_feedback_rating, 
                     session_feedback_comment
                 )
-                st.toast("Dziękuję za ocenę rozmowy! 🌟", icon="✅")
+                st.toast("Dziękuję za opinię! 💡", icon="✅")
                 st.session_state.session_feedback_given = True
                 reset_session(session_feedback_rating, session_feedback_comment)
                 st.rerun()
 
+# Tuż po obsłudze akceptacji warunków i przed renderowaniem historii
+if st.session_state.turns < MAX_TURNS and st.session_state.turns > 0 and not st.session_state.session_feedback_given:
+    st.markdown("---")
+    if st.button("📝 Zakończ i zobacz podsumowanie", use_container_width=True, type="secondary"):
+        st.session_state.turns = MAX_TURNS + 1  # Symuluj osiągnięcie limitu + 1 - żeby dać znać, że użytkownik chce zakończyć sesję wcześniej
+        st.rerun()

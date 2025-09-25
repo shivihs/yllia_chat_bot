@@ -44,7 +44,7 @@ USD_TO_PLN = 3.63
 
 YLLIA_FIRST_MESSAGE = "Cześć, jestem Yllia, z przyjemnością odpowiem na Twoje pytania."
 
-MAX_TURNS = 5
+MAX_TURNS = 7
 
 EMBEDDING_MODEL = "text-embedding-3-large"
 EMBEDDING_DIMENSION = 3072

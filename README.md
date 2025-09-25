@@ -4,15 +4,17 @@ Yllia to profesjonalna wirtualna asystentka gabinetu psychiatrycznego.
 Powstała, aby w prosty, życzliwy i zrozumiały sposób odpowiadać na najczęstsze pytania pacjentów.  
 Nie zastępuje lekarza ani rejestracji, ale pomaga odnaleźć się w organizacji pracy gabinetu oraz przygotować się do wizyty.
 
-**Wersja:** 2.0 (testowa)  
+**Wersja:** 2.1 (testowa)  
 **Autor:** Damian Siwicki
+
+👉 [Zobacz pełną historię zmian](./CHANGELOG.md)
 
 ---
 
 ## ✨ Główne funkcjonalności
 
 ### 🔄 System sesyjny
-- **Limit pytań**: Maksymalnie 5 pytania na sesję
+- **Limit pytań**: Maksymalnie 7 pytania na sesję
 - **Inteligentne podsumowania**: Automatyczne streszczanie historii rozmowy
 - **Notatki dla pacjenta**: Czytelne podsumowanie po zakończeniu sesji
 - **Akceptacja warunków**: Obowiązkowe zapoznanie się z zasadami korzystania
@@ -169,7 +171,7 @@ LANGFUSE_ENABLED=true
 - **Śledzenie**: Precyzyjne liczenie input/output tokenów
 
 ### Limity sesji
-- **Maksymalnie**: 5 pytań na sesję
+- **Maksymalnie**: 7 pytań na sesję
 - **Powód**: Kontrola kosztów i jakości doświadczenia
 - **Reset**: Automatyczny po ocenie końcowej
 
@@ -208,3 +210,4 @@ streamlit run app.py
 **Website**: https://damiansiwicki.pl
 
 **Uwaga**: Aplikacja jest w wersji testowej. Yllia nie zastępuje konsultacji medycznej i służy wyłącznie celom informacyjnym dotyczącym organizacji pracy gabinetu psychiatrycznego.
+
