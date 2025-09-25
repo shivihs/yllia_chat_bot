@@ -6,7 +6,7 @@ APP_DESCRIPTION = (
     "\n\nNie zastępuje lekarza ani rejestracji, ale pomaga odnaleźć się w organizacji pracy gabinetu oraz przygotować się do wizyty."
     "\n\nCelem Yllii jest ułatwienie kontaktu i zmniejszenie niepewności przed spotkaniem ze specjalistą."
 )
-APP_VERSION = "v 2.0 (testowa)"
+APP_VERSION = "v 2.1 (testowa)"
 APP_AUTHOR = "Damian Siwicki"
 APP_AUTHOR_EMAIL = "poczta@siwicki.info"
 APP_AUTHOR_WEBSITE = "https://damiansiwicki.pl"
