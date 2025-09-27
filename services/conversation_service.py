@@ -86,10 +86,4 @@ def summarize_full_history_for_patients(messages: list[dict], speech_history: st
 
     except Exception as e:
         print(f"Błąd w summarize_full_history_for_patients: {str(e)}")
-        return "Wystąpił błąd podczas przetwarzania historii rozmowy.", 
-
-    def pl_en_autotranslate(text: str) -> str:
-        """
-        Automatycznie identyfikuje język tekstu.
-        """
-        return detect(text)
+        return "Wystąpił błąd podczas przetwarzania historii rozmowy.", 0
