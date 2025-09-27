@@ -29,7 +29,11 @@ def ask_openai(user_input: str, ctx_static: str = "", ctx_dynamic: str = "", spe
         temperature=0.3,
     )
 
-    return response.choices[0].message.content
+    # Zwraca odpowiedź OpenAI, zamieniając każde "siwicki.info" na link
+    content = response.choices[0].message.content
+    # Zamiana "siwicki.info" na link do https://siwicki.info
+    content = content.replace("siwicki.info", "[siwicki.info](https://siwicki.info)")
+    return content
 
 # Proste zapytanie do OpenAI
 def ask_openai_simple(user_prompt: str) -> str:

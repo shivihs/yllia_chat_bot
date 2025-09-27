@@ -1,6 +1,6 @@
 from services.openai_service import ask_openai_simple
 from config.config import PROMPT_SUMMARY, PROMPT_PATIENTS_SUMMARY
-from config.constants import OPENAI_MODEL
+from config.constants import OPENAI_MODEL, MAX_INPUT
 import tiktoken
 
 def format_history(messages: list[dict]) -> str:
@@ -12,6 +12,15 @@ def format_history(messages: list[dict]) -> str:
         role = "Pacjent" if msg["role"] == "user" else "Yllia"
         formatted.append(f"{role}: {msg['content']}")
     return "\n".join(formatted)
+
+def check_length(text: str) -> bool:
+    """
+    Sprawdza długość tekstu.
+    """
+    if len(text) > MAX_INPUT:
+        return False # Za długi tekst
+    else:
+        return True # Poprawna długość
 
 def summarize_full_history(messages: list[dict]) -> tuple[str, int]:
     """
@@ -77,4 +86,10 @@ def summarize_full_history_for_patients(messages: list[dict], speech_history: st
 
     except Exception as e:
         print(f"Błąd w summarize_full_history_for_patients: {str(e)}")
-        return "Wystąpił błąd podczas przetwarzania historii rozmowy.", 0
+        return "Wystąpił błąd podczas przetwarzania historii rozmowy.", 
+
+    def pl_en_autotranslate(text: str) -> str:
+        """
+        Automatycznie identyfikuje język tekstu.
+        """
+        return detect(text)

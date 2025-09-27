@@ -23,7 +23,6 @@ def sessions_new(session_id: str):
     """
     return supabase.table(SUPABASE_TABLE_SESSIONS).insert({
         "session_id": session_id,
-        # "started_at": datetime.now()
     }).execute()
 
 def sessions_end(session_id: str):   

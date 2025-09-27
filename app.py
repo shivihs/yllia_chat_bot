@@ -8,7 +8,7 @@ import tiktoken
 import services.prompt_sevice as prompt_service
 from PIL import Image
 import services.supabase_service as supabase_service
-from services.conversation_service import summarize_full_history, summarize_full_history_for_patients
+from services.conversation_service import summarize_full_history, summarize_full_history_for_patients, check_length
 from services.qdrant_service import search_embeddings
 
 
@@ -205,7 +205,11 @@ render_history()
 # Obsługa promptu użytkownika
 #
 if user_input := st.chat_input("Zadaj pytanie:"):
-   
+    if not check_length(user_input):
+        st.error(f"Maksymalna długość wiadomości to {MAX_INPUT} znaków.")
+        st.stop()
+    else:
+        pass
     # Jeśli nie przekroczyliśmy limitu, generujemy odpowiedź
     if st.session_state.turns < MAX_TURNS:
         
@@ -228,8 +232,9 @@ if user_input := st.chat_input("Zadaj pytanie:"):
         if st.session_state.trace_id is None:
             new_trace()
         
-        # Generujemy odpowiedź
-        response, st.session_state.last_observation_id = langfuse_service.track_generation_complete(st.session_state.trace_id, OPENAI_MODEL, user_input, ask_openai, answer_static, answer_dynamic, st.session_state.session_summary)
+        # Generujemy odpowiedź z spinnerem
+        with st.spinner("Myślę nad odpowiedzią..."):
+            response, st.session_state.last_observation_id = langfuse_service.track_generation_complete(st.session_state.trace_id, OPENAI_MODEL, user_input, ask_openai, answer_static, answer_dynamic, st.session_state.session_summary)
         
         # Dodajemy odpowiedź do historii i oznaczamy jako nieocenioną
         st.session_state.output_feedback_given = False
