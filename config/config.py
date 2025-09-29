@@ -31,3 +31,5 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", None)  # jeśli nie ma autoryzacji,
 PROMPT_GENERAL = os.path.join(os.path.dirname(__file__), "..", "prompts", "prompt_general.md") # Prompt z jakiego korzystamy w aplikacji
 PROMPT_SUMMARY = os.path.join(os.path.dirname(__file__), "..", "prompts", "prompt_summary.md") # Prompt do streszczenia historii rozmowy
 PROMPT_PATIENTS_SUMMARY = os.path.join(os.path.dirname(__file__), "..", "prompts", "prompt_patients_summary.md") # Prompt do streszczenia historii rozmowy dla pacjentów
+PROMPT_TRANSLATE_TO_POLISH = os.path.join(os.path.dirname(__file__), "..", "prompts", "prompt_translate_to_polish.md") # Prompt do tłumaczenia na polski
+PROMPT_TRANSLATE_FROM_POLISH = os.path.join(os.path.dirname(__file__), "..", "prompts", "prompt_translate_from_polish.md") # Prompt do tłumaczenia z polska na inny język

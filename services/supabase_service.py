@@ -68,7 +68,7 @@ def sessions_get(session_id: str):
 #
 
 
-def messages_add(session_id: str, user_input: str, context_static: str, context_dynamic: str, context_history: str = "", model: str = "", usage_input: int = 0, usage_output: int = 0, chat_output: str = ""):
+def messages_add(session_id: str, user_input: str, context_static: str, context_dynamic: str, context_history: str = "", model: str = "", usage_input: int = 0, usage_output: int = 0, chat_output: str = "", language: str = ""):
     """
     Tworzy nową wiadomość w Supabase.
     
@@ -82,6 +82,7 @@ def messages_add(session_id: str, user_input: str, context_static: str, context_
         usage_input: liczba tokenów wejściowych
         usage_output: liczba tokenów wyjściowych
         chat_output: odpowiedź asystenta
+        language: język wiadomości
     """
     result = supabase.table(SUPABASE_TABLE_MESSAGES).insert({
         "session_id": session_id,
@@ -92,7 +93,8 @@ def messages_add(session_id: str, user_input: str, context_static: str, context_
         "model": model,
         "usage_input": usage_input,
         "usage_output": usage_output,
-        "chat_output": chat_output
+        "chat_output": chat_output,
+        "language": language
     }).execute()
     return result
 

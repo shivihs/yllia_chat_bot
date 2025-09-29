@@ -6,6 +6,12 @@ a wersjonowanie jest zgodne z [Semantic Versioning](https://semver.org/spec/v2.0
 ## [Unreleased]
 - Obsługa innych języków zapytań użytkownika
 
+## [2.2.0] - 2025-09-29
+### Added
+- Automatyczne wykrywanie języka i odpowiedź w języku pytania (domyślnie obsługa dla: pl | en | de | es | fr | it | ru | uk | cs | sk)
+- Zapisywanie wiadomości języka zapytania do bazy danych
+- Generowanie podsumowania w dominującym języku rozmowy
+
 ## [2.1.1] - 2025-09-27
 ### Added
 - Spinner oczekiwania na odpowiedź
