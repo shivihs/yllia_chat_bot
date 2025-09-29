@@ -336,19 +336,3 @@ if st.session_state.turns < MAX_TURNS and st.session_state.turns > 0 and not st.
     if st.button("📝 Zakończ i zobacz podsumowanie", use_container_width=True, type="secondary"):
         st.session_state.turns = MAX_TURNS + 1  # Symuluj osiągnięcie limitu + 1 - żeby dać znać, że użytkownik chce zakończyć sesję wcześniej
         st.rerun()
-
-
-with st.sidebar:
-    st.markdown("---")
-    tekst = st.text_input("Podaj tekst w języku obcym do tłumaczenia:", value="", placeholder="Dodaj tekst do tłumaczenia...")
-    if st.button("Na polski", use_container_width=True):
-        tekst, język, token_count = detect_and_translate_to_polish(tekst)
-        st.success(f"Tłumaczenie: {tekst}")
-        st.success(f"Język: {język}")
-        st.success(f"Liczba tokenów: {token_count}")
-    tekst = st.text_input("Podaj tekst do tłumaczenia:", value="", placeholder="Dodaj tekst do tłumaczenia...")
-    if st.button("Z polski", use_container_width=True):
-        st.write()
-        translated_text, token_count = translate_from_polish(tekst, "en")
-        st.success(f"Tłumaczenie: {translated_text}")
-        st.success(f"Liczba tokenów: {token_count}")
