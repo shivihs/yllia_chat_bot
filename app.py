@@ -58,21 +58,27 @@ def new_trace():
     # Tworzy nowy trace.
     st.session_state.trace_id = langfuse_service.create_trace(st.session_state.session_id)
 
-def finalize_session(final_score: int = None, final_note: str = ""):
-    # Zamyka sesję.
-    #st.session_state.token_input_count - nic nie robimy - już policzone przy generowaniu podsumowania dla pacjenta
+def save_session_summary(session_summary: str):
     # Liczymy tokeny
-    st.session_state.token_output_count = len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(st.session_state.session_summary))
+    #st.session_state.token_input_count - nic nie robimy - już policzone przy generowaniu podsumowania dla pacjenta
+    st.session_state.token_output_count = len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(session_summary))
     st.session_state.token_total_count += st.session_state.token_input_count + st.session_state.token_output_count
-    # Zapisujemy podsumowanie rozmowy do bazy danych i zamykamy sesję
-    supabase_service.messages_add(st.session_state.session_id, "Podsumowanie rozmowy", "", "", "", OPENAI_MODEL, st.session_state.token_input_count, st.session_state.token_output_count, st.session_state.session_summary, st.session_state.session_language.get_dominant_language())
-    supabase_service.sessions_update(st.session_state.session_id, chat_summary=st.session_state.session_summary, score_final=final_score, score_note=final_note, usage_total=st.session_state.token_total_count)
+    # Zapisuje podsumowanie rozmowy do bazy danych
+    supabase_service.messages_add(st.session_state.session_id, "Podsumowanie rozmowy", "", "", "", OPENAI_MODEL, st.session_state.token_input_count, st.session_state.token_output_count, session_summary, st.session_state.session_language.get_dominant_language())
+    supabase_service.sessions_update(st.session_state.session_id, chat_summary=session_summary, usage_total=st.session_state.token_total_count)
+
+def close_session():
+    # Zamyka sesję.
     supabase_service.sessions_end(st.session_state.session_id)
 
-    
+def score_session(final_score: int = None, final_note: str = ""):
+    # Ocenia sesję.
+    supabase_service.sessions_update(st.session_state.session_id, score_final=final_score, score_note=final_note, usage_total=st.session_state.token_total_count)
+
 def reset_session(final_score: int = None, final_note: str = ""):
     # Resetuje sesję - funkcja pomocnicza (komentarz po polsku, nie wyświetla się w aplikacji). 
-    finalize_session(final_score, final_note)
+    score_session(final_score, final_note)
+    close_session()
     reset_messages()
     reset_languages()
     reset_token_counts()
@@ -226,13 +232,13 @@ if user_input := st.chat_input("Zadaj pytanie:"):
         with st.chat_message("user", avatar=AVATARS["user"]):
             st.write(user_input)
         
-        user_input, language, token_count = detect_and_translate_to_polish(user_input)
+        user_input_translated, language, token_count = detect_and_translate_to_polish(user_input)
         st.session_state.session_language.add_language(language)
         st.session_state.token_total_count += token_count
 
         with st.spinner("Myślę nad odpowiedzią..."):       # Generujemy kontekst
-            answer_static = search_embeddings(user_input, QDRANT_COLLECTION_NAME)[0].payload["answer"]
-            answer_dynamic = search_embeddings(user_input, QDRANT_COLLECTION_NAME_DYNAMIC)[0].payload["answer"]
+            answer_static = search_embeddings(user_input_translated, QDRANT_COLLECTION_NAME)[0].payload["answer"]
+            answer_dynamic = search_embeddings(user_input_translated, QDRANT_COLLECTION_NAME_DYNAMIC)[0].payload["answer"]
             st.session_state.session_summary, tokens_temp_input_count = summarize_full_history(st.session_state.messages)
             st.session_state.token_total_count += tokens_temp_input_count
             
@@ -245,7 +251,7 @@ if user_input := st.chat_input("Zadaj pytanie:"):
                 new_trace()
             
             # Generujemy odpowiedź z spinnerem
-            response, st.session_state.last_observation_id = langfuse_service.track_generation_complete(st.session_state.trace_id, OPENAI_MODEL, user_input, ask_openai, answer_static, answer_dynamic, st.session_state.session_summary)
+            response, st.session_state.last_observation_id = langfuse_service.track_generation_complete(st.session_state.trace_id, OPENAI_MODEL, user_input_translated, ask_openai, answer_static, answer_dynamic, st.session_state.session_summary)
         
             # Jeżeli ostatnio dodany język to nie polski, tłumaczemy odpowiedź
             if st.session_state.session_language.last_added() != "pl":
@@ -257,8 +263,8 @@ if user_input := st.chat_input("Zadaj pytanie:"):
         st.session_state.messages.append({"role": "assistant", "content": response, "obs_id": st.session_state.last_observation_id})
         
         # Liczymy tokeny
-        st.session_state.token_input_count = len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(user_input + prompt_service.load_prompt(ctx_static=answer_static, ctx_dynamic=answer_dynamic, conversation_summarized=st.session_state.session_summary)))
-        st.session_state.token_input_count += len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(user_input))
+        st.session_state.token_input_count = len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(user_input_translated + prompt_service.load_prompt(ctx_static=answer_static, ctx_dynamic=answer_dynamic, conversation_summarized=st.session_state.session_summary)))
+        st.session_state.token_input_count += len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(user_input_translated))
         st.session_state.token_output_count = len(tiktoken.encoding_for_model(OPENAI_MODEL).encode(st.session_state.messages[-1]["content"]))
         st.session_state.token_total_count += st.session_state.token_input_count + st.session_state.token_output_count
         
@@ -307,11 +313,14 @@ if st.session_state.turns >= MAX_TURNS:
             )
         if not st.session_state.session_summary_generated:
             st.session_state.session_summary, st.session_state.token_input_count = summarize_full_history_for_patients(st.session_state.messages, st.session_state.session_summary)
+            st.session_state.token_total_count += st.session_state.token_input_count
             st.session_state.session_summary_generated = True
             if st.session_state.session_language.get_dominant_language() != "pl" and st.session_state.session_language.get_dominant_language() != "unknown":
                 st.session_state.session_summary, token_count = translate_from_polish(st.session_state.session_summary, st.session_state.session_language.get_dominant_language())
                 st.session_state.token_total_count += token_count
+            save_session_summary(st.session_state.session_summary)
         st.success(f"📝**Podsumowanie**\n\n{st.session_state.session_summary}")
+
         with st.expander("Podziel się swoją opinią", expanded=True):
             session_feedback_rating = st.slider(
                 "💡 Twoja ocena od 1 (słabo) do 5 (super):", 

@@ -6,6 +6,10 @@ a wersjonowanie jest zgodne z [Semantic Versioning](https://semver.org/spec/v2.0
 ## [Unreleased]
 - Obsługa innych języków zapytań użytkownika
 
+## [2.2.1] - 2025-09-29
+### Changed
+- Dopisywanie podsumowania sesji do DB jeszcze przed oceną końcową
+
 ## [2.2.0] - 2025-09-29
 ### Added
 - Automatyczne wykrywanie języka i odpowiedź w języku pytania (domyślnie obsługa dla: pl | en | de | es | fr | it | ru | uk | cs | sk)
